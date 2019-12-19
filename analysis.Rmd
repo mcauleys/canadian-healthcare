@@ -1,0 +1,421 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+require(lubridate) # For summarizing years and date
+```
+
+
+
+```{r}
+
+private <- read.csv(file = "PitchBook_scan.csv", stringsAsFactors = FALSE)
+public <- read.csv(file = "CAPIQ_scan.csv", stringsAsFactors = FALSE)
+
+# Only want deals that have been completed
+private <- private[private$Deal.Status == "Completed",]
+public <- public[public$Transaction.Status == "Closed",]
+
+```
+
+
+Prepare the public data
+```{r}
+public <- public %>% select(Target.Issuer, Exchange.Ticker, ï..All.Transactions.Announced.Date, Transaction.Types, Total.Transaction.Value..CADmm..Historical.rate., Buyers.Investors, Business.Description..Target.Issuer.)
+
+
+names(public) <- c("Company", "Ticker", "Date", "Type", "Size", "Investors", "Description")
+
+# Format the deal size column
+public$Size <- as.numeric(public$Size)
+
+# Format the date column
+public$Date<- as.Date(public$Date, format = '%m/%d/%Y')
+
+# Remove the Merger/Acquisitions
+public <- public[public$Type != "Merger/Acquisition",]
+
+```
+
+Prepare the private data
+```{r}
+private <- private %>% select(Company.Name, Deal.Date, Deal.Type, Deal.Size, Investors, Description)
+
+# Create a Ticker column and rearrange columns
+Ticker <- rep("private", nrow(private))
+
+private <- cbind(private, Ticker)
+names(private) <- c("Company", "Date", "Type", "Size", "Investors", "Description", "Ticker")
+private <- private[,c(1,7,2,3,4,5,6)]
+
+# Format the deal size column
+private$Size <- as.numeric(private$Size)
+
+# Format date column
+private$Date <- as.Date(private$Date, format = '%d-%b-%Y')
+
+# Remove the IPOs, Product Crowdfunding, Capitalization Product from the dataset
+private <- private[private$Type != "IPO",]
+private <- private[private$Type != "Public Investment 2nd Offering",]
+private <- private[private$Type != "Product Crowdfunding",]
+private <- private[private$Type != "Capitalization",]
+
+# Rename Angel Investor Type
+private$Type[private$Type == "Angel (individual)"] <- "Angel"
+
+```
+
+Combine the datasets
+```{r}
+df <- rbind(private, public)
+```
+
+Replace specific tickers with the 'public' label
+```{r}
+df$Ticker[which(df$Ticker != 'private')] <- NA
+
+df$Ticker <- droplevels(df$Ticker)
+
+levels(df$Ticker) <- c('private', 'public')
+
+df$Ticker[which(is.na(df$Ticker))] <- 'public'
+```
+
+Add the company catagory labels
+```{r}
+cats <- read.csv(file = "catagories.csv", header = TRUE)
+cats <- unique(cats)
+
+df <- cbind(df, cats$Category[match(unlist(df$Company), cats$ï..Company)])
+
+names(df) <- c("Company", "Ticker", "Date", "Type", "Size", "Investors", "Description", "Category")
+```
+
+Data statistics
+```{r}
+#Number of deals
+nrow(df[df$Ticker == "private",])
+nrow(df[df$Ticker == "public",])
+
+nrow(df[df$Type == "Accelerator/Incubator",])
+nrow(df[df$Type == "Angel",])
+nrow(df[df$Type == "Seed Round",])
+nrow(df[df$Type == "Early Stage VC",])
+nrow(df[df$Type == "Later Stage VC",])
+nrow(df[df$Type == "Public Offering",])
+nrow(df[df$Type == "Private Placement",])
+
+ggplot(df) +
+  geom_bar(aes(x=reorder(Ticker,Ticker,function(x)-length(x)))) +
+  ylab("Number of deals") +
+  xlab("")
+
+png(file = "deal-types-count.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(df) +
+  geom_bar(aes(x = reorder(Type,Type,function(x)-length(x))), fill = "#2d465f") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Number of deals") +
+  xlab("")
+dev.off()
+
+#Number of deals with undisclosed amounts
+length(which(is.na(df$Size)))
+
+#Funding stage where deal amount is undisclosed
+ggplot(df[is.na(df$Size),]) +
+  geom_bar(aes(x=reorder(Type,Type,function(x)-length(x)))) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#Number of unique companies
+length(unique(df$Company[df$Ticker == "private"]))
+length(unique(df$Company[df$Ticker == "public"]))
+
+#Deal Size Statistics
+summary(df$Size[df$Ticker == "private"])
+summary(df$Size[df$Ticker == "public"])
+
+summary(df$Size[df$Type == "Accelerator/Incubator"])
+summary(df$Size[df$Type == "Angel"])
+summary(df$Size[df$Type == "Seed Round"])
+summary(df$Size[df$Type == "Early Stage VC"])
+summary(df$Size[df$Type == "Later Stage VC"])
+summary(df$Size[df$Type == "Public Offering"])
+summary(df$Size[df$Type == "Private Placement"])
+
+#Total Amount Raised
+sum(df$Size[(df$Ticker == "private" & !is.na(df$Size))])
+sum(df$Size[(df$Ticker == "public" & !is.na(df$Size))])
+
+sum(df$Size[(df$Type == "Accelerator/Incubator" & !is.na(df$Size))])
+sum(df$Size[(df$Type == "Angel" & !is.na(df$Size))])
+sum(df$Size[(df$Type == "Seed Round" & !is.na(df$Size))])
+sum(df$Size[(df$Type == "Early Stage VC" & !is.na(df$Size))])
+sum(df$Size[(df$Type == "Later Stage VC" & !is.na(df$Size))])
+sum(df$Size[(df$Type == "Public Offering" & !is.na(df$Size))])
+sum(df$Size[(df$Type == "Private Placement" & !is.na(df$Size))])
+
+png(file = "deal-types-amounts.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(df) +
+  geom_bar(aes(x = reorder(Type,Type,function(x)-length(x)), y = Size), stat = "identity", fill = "#2d465f") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Total deal value ($M)") +
+  xlab("") +
+  scale_y_continuous(breaks = c(0,1000,2000,3000,4000,5000, 6000))
+dev.off()
+
+pdf(file = "deal-types-amounts-individial.pdf", width = 8, height = 4)
+ggplot(df) +
+  geom_point(aes(x = reorder(Type,Type,function(x)-length(x)), y = Size), stat = "identity") +
+  geom_boxplot(aes(x = reorder(Type,Type,function(x)-length(x)), y = Size)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Deal value ($M)") +
+  xlab("") +
+  scale_y_continuous(breaks = c(0,250,500,750,1000))
+dev.off()
+
+pdf(file = "deal-types-amounts-individial-focus.pdf", width = 8, height = 4)
+ggplot(df) +
+  geom_point(aes(x = reorder(Type,Type,function(x)-length(x)), y = Size), stat = "identity") +
+  geom_boxplot(aes(x = reorder(Type,Type,function(x)-length(x)), y = Size)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Deal value ($M)") +
+  xlab("") +
+  scale_y_continuous(limits = c(0,40))
+dev.off()
+
+
+```
+
+
+```{r}
+
+ggplot(df) +
+  geom_density(aes(Size), size = 0.8)
+
+pdf(file = "deal-hist.pdf", width = 8, height = 4)
+ggplot(df) +
+  geom_histogram(aes(x=Size, fill=Ticker), colour = "black") +
+  geom_vline(xintercept = 125) +
+  ylab("Number of deals") +
+  xlab("Deal Size ($M)") +
+  labs(fill = "Company Type")
+dev.off()
+
+pdf(file = "deal-hist-low.pdf", width = 8, height = 4)
+ggplot(df) +
+  geom_histogram(aes(x=Size, fill=Ticker), colour = "black") +
+  ylab("Number of deals") +
+  xlab("Deal Size ($M)") +
+  scale_x_continuous(limits = c(0,125)) +
+  scale_y_continuous(limits = c(0,175)) +
+  labs(fill = "Company Type")
+dev.off()
+
+pdf(file = "deal-hist-high.pdf", width = 8, height = 4)
+ggplot(df) +
+  geom_histogram(aes(x=Size, fill=Ticker), colour = "black") +
+  ylab("Number of deals") +
+  xlab("Deal Size ($M)") +
+  scale_x_continuous(limits = c(125,1000)) +
+  scale_y_continuous(limits = c(0,5)) +
+  labs(fill = "Company Type")
+dev.off()
+
+```
+
+Analyze Fundraising by Company
+```{r}
+df.company <- df %>% group_by(Company, Ticker) %>% tally()
+
+ggplot(df.company) +
+  geom_histogram(aes(n, fill = Ticker), colour = "black") +
+  labs(y = "Number of companies",
+       x = "Number of deals",
+       fill = "Company Type") 
+
+```
+
+Analyze Deals by Catagory: Remove Accelerator/Incubator Deals; greater than 3M
+```{r}
+df.category <- df[(!is.na(df$Category) & df$Type != "Accelerator/Incubator" & df$Size >= 3),] 
+
+png(file = "company-type-by-deal.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(df.category[!is.na(df.category$Category),]) +
+  geom_bar(aes(x = reorder(Category,Category,function(x)-length(x)), fill = Type)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values=c("#A8A9AD", "#56B4E9", "#118AB2", "#2d465f")) +
+  labs(x = "", y = "Number of deals")
+dev.off()
+
+png(file = "company-type-by-amount.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(df.category[!is.na(df.category$Category),]) +
+  geom_bar(aes(x = reorder(Category,Category,function(x)-length(x)), y = Size, fill = Type), stat = "identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values=c("#A8A9AD", "#56B4E9", "#118AB2", "#2d465f")) +
+  labs(x = "", y = "Total deal value ($M)") +
+  scale_y_continuous(breaks = c(250, 500, 750, 1000, 1250))
+dev.off()
+
+
+```
+
+
+Analyzing Deals by Time
+```{r}
+
+aggregate(list(size = df$Size), 
+          list(month = cut(df$Date, "1 month")), 
+          mean)
+
+month(df$Date)
+
+df2 <- df[!is.na(df$Size),]
+df2 <- df2 %>% mutate(month = month(Date)) %>% mutate(year = year(Date))
+
+df2.summary <- df2 %>% group_by(month, year, Type) %>% summarise(count = n())
+df2.summary <- df2.summary %>% mutate(date = as.Date(paste0(year, "-", month,"-01"),"%Y-%m-%d"))
+
+df2.total <- df2 %>% group_by(month, year, Type) %>% summarise(sum_size = sum(Size))
+df2.total <- df2.total %>% mutate(date = as.Date(paste0(year, "-", month,"-01"),"%Y-%m-%d"))
+
+
+png(file = "timecourse-deals-by-type.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(df2.summary) +
+  geom_bar(aes(x = date, y = count, fill = Type), colour = "black", stat = "identity") +
+  labs(y = "Number of deals",
+       x = "") + 
+  scale_x_date(date_labels = "%Y") +
+  scale_fill_manual(values=c("#eff3ff", "#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
+dev.off()
+
+png(file = "timecourse-deals-by-total.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(df2.total) +
+  geom_bar(aes(x = date, y = sum_size, fill = Type), colour = "black", stat = "identity") +
+  labs(y = "Total deal value ($M)",
+       x = "") + 
+  scale_x_date(date_labels = "%Y") +
+  scale_fill_manual(values=c("#eff3ff", "#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
+  scale_y_continuous(breaks = c(250, 500, 750, 1000, 1250, 1500))
+dev.off()
+
+
+
+
+df2.public <- df2.summary[(df2.summary$Type == "Public Offering" | df2.summary$Type == "Private Placement"),]  
+df2.private <- df2.summary[!(df2.summary$Type == "Public Offering" | df2.summary$Type == "Private Placement"),] 
+
+df.public <- df[(df$Type == "Public Offering" | df$Type == "Private Placement"),]  
+df.private <- df[!(df$Type == "Public Offering" | df$Type == "Private Placement"),] 
+
+
+pdf(file = "timecourse-public.pdf", width = 8, height = 4)
+ggplot(df2.public) +
+  geom_line(aes(x = date, y = sum_size, color = Type), size = 1.5) +
+  labs(y = "Deal Size ($M)",
+       x = "Date") + 
+  scale_x_date(date_labels = "%Y")
+dev.off()
+
+pdf(file = "timecourse-private.pdf", width = 8, height = 4)
+ggplot(df2.private) +
+  geom_line(aes(x = date, y = sum_size, color = Type), size = 1.5) +
+  labs(y = "Deal Size ($M)",
+       x = "Date") + 
+  scale_x_date(date_labels = "%Y")
+dev.off()
+
+
+pdf(file = "timecourse-public-individual.pdf", width = 8, height = 4)
+ggplot(df.public) +
+  geom_point(aes(x = Date, y = Size, color = Type), size = 3) +
+  labs(y = "Deal Size ($M)",
+       x = "Date") + 
+  scale_x_date(date_labels = "%Y")
+dev.off()
+
+pdf(file = "timecourse-public-individual-focus.pdf", width = 8, height = 4)
+ggplot(df.public) +
+  geom_point(aes(x = Date, y = Size, color = Type), size = 3) +
+  labs(y = "Deal Size ($M)",
+       x = "Date") + 
+  scale_x_date(date_labels = "%Y") +
+  scale_y_continuous(limits = c(0,100))
+dev.off()
+
+pdf(file = "timecourse-private-individual.pdf", width = 8, height = 4)
+ggplot(df.private) +
+  geom_point(aes(x = Date, y = Size, color = Type), size = 3) +
+  labs(y = "Deal Size ($M)",
+       x = "Date") + 
+  scale_x_date(date_labels = "%Y")
+dev.off()
+
+pdf(file = "timecourse-private-individual-focus.pdf", width = 8, height = 4)
+ggplot(df.private) +
+  geom_point(aes(x = Date, y = Size, color = Type), size = 3) +
+  labs(y = "Deal Size ($M)",
+       x = "Date") + 
+  scale_x_date(date_labels = "%Y") +
+  scale_y_continuous(limits = c(0,50))
+dev.off()
+
+```
+
+Analyze the investors who are participating in deals
+```{r}
+# Remove the text between the parenthases
+private.investors <- df.private %>% mutate(Investors = gsub("\\s*\\([^\\)]+\\)","",as.character(df.private$Investors)))
+
+private.investors <- separate_rows(private.investors, Investors, sep = ", ")
+private.investors <- separate_rows(private.investors, Investors, sep = "; ")
+
+private.investors$Company <- factor(private.investors$Company)
+private.investors$Type <- factor(private.investors$Type)
+private.investors$Investors <- factor(private.investors$Investors)
+private.investors$Investors[private.investors$Investors == "-"] <- "" 
+
+# Remove Accelerator Deals
+private.investors <- private.investors[private.investors$Type != "Accelerator/Incubator",]
+
+# Remove Angel Deals
+private.investors <- private.investors[private.investors$Type != "Angel",]
+
+# Remove Inc. from dataset
+private.investors <- private.investors[private.investors$Investors != "Inc.",]
+
+# Remove no investor listed from dataset
+private.investors <- private.investors[private.investors$Investors != "",]
+
+# Remove firms that have not done at least 4 deals over the course of the 2016 - 2019 timeline
+private.investors.summary <- private.investors %>% group_by(Investors) %>% tally()
+private.investors.summary <- private.investors.summary[private.investors.summary$n > 3,]
+
+# Find the amount that the more active companies have invested
+names <- unique(private.investors$Investors[private.investors$Investors %in% private.investors.summary$Investors])
+
+private.investors.amount <- private.investors[private.investors$Investors %in% names,]
+private.investors.amount <- private.investors.amount[!is.na(private.investors.amount$Size),]
+private.investors.amount <- private.investors.amount %>% group_by(Investors) %>% summarise(sum_size = sum(Size))
+
+
+ggplot(private.investors.summary) +
+  geom_col(aes(x = reorder(Investors, -n), y = n)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(y = "Number of Deals", x = "")
+
+ggplot(private.investors.amount) +
+  geom_col(aes(x = reorder(Investors, -sum_size), y = sum_size)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(y = "Total Deal Amount ($M)", x = "")
+# Note that this isn't the specific deal value of the specific firm, but the total deal value that they have participated in
+
+```
+
+
+
+
+
+
