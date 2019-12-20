@@ -1,0 +1,26 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+names <- read.csv("healthcare-investors-names.csv", header = TRUE)
+
+investors <- levels(names[,"AKU.CA"])[levels(names$AKU.CA) != ""]
+tick <- rep("AKU.CA", length(investors))
+
+t <- cbind(tick,investors)
+
+df <- data.frame()
+
+for (ticker in names(names)){
+  
+  investors <- levels(names[,ticker])[levels(names$AKU.CA) != ""]
+  tick <- rep(ticker, length(investors))
+  
+  t <- cbind(tick,investors)
+  
+  df <- rbind(df,t)
+}
+```
+

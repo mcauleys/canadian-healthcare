@@ -1,8 +1,10 @@
 ---
 title: "R Notebook"
-output: html_notebook
+output:
+  pdf_document: default
+  html_notebook: default
 ---
-
+Import required libraries
 ```{r}
 library(tidyverse)
 require(lubridate) # For summarizing years and date
@@ -92,6 +94,8 @@ cats <- unique(cats)
 df <- cbind(df, cats$Category[match(unlist(df$Company), cats$ï..Company)])
 
 names(df) <- c("Company", "Ticker", "Date", "Type", "Size", "Investors", "Description", "Category")
+
+rm(cats)
 ```
 
 Data statistics
@@ -107,11 +111,6 @@ nrow(df[df$Type == "Early Stage VC",])
 nrow(df[df$Type == "Later Stage VC",])
 nrow(df[df$Type == "Public Offering",])
 nrow(df[df$Type == "Private Placement",])
-
-ggplot(df) +
-  geom_bar(aes(x=reorder(Ticker,Ticker,function(x)-length(x)))) +
-  ylab("Number of deals") +
-  xlab("")
 
 png(file = "deal-types-count.png", width = 6, height = 3, units = 'in', res = 300)
 ggplot(df) +
@@ -191,7 +190,6 @@ dev.off()
 
 
 ```{r}
-
 ggplot(df) +
   geom_density(aes(Size), size = 0.8)
 
@@ -258,8 +256,6 @@ ggplot(df.category[!is.na(df.category$Category),]) +
   labs(x = "", y = "Total deal value ($M)") +
   scale_y_continuous(breaks = c(250, 500, 750, 1000, 1250))
 dev.off()
-
-
 ```
 
 
