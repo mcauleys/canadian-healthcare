@@ -4,6 +4,7 @@ output:
   pdf_document: default
   html_notebook: default
 ---
+
 Import required libraries
 ```{r}
 library(tidyverse)
