@@ -45,6 +45,10 @@ df.investor <- df %>% group_by(investors, loc) %>% summarise(count = n(), total 
 
 ```
 
+```{r}
+summary(df.investor)
+```
+
 
 ```{r}
 ylab = c(200, 400, 600, 800)
@@ -54,8 +58,6 @@ ggplot(df.investor) +
   scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
   scale_x_continuous(breaks = c(1:21)) +
   labs(y = "Total investment ($)", x = "Number of investments")
-
-unique(df$tick)
 
 ```
 
