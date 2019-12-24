@@ -46,6 +46,45 @@ df$tick <- sub("[.]", "-", df$tick)
 df$val <- as.numeric(as.character(df$val))
 df$out <- as.numeric(as.character(df$out))
 
+rm(country)
+rm(names)
+rm(os)
+rm(value)
+rm(t)
+rm(investors)
+rm(tick)
+rm(loc)
+rm(val)
+rm(out)
+rm(ticker)
+
+```
+
+Add company catagory tags to analysis
+```{r}
+cats <- read.csv(file = "catagories2.csv", header = FALSE, stringsAsFactors = FALSE)
+cats$V1[1] <- "ACST-CA"
+
+cats <- unique(cats)
+
+df <- cbind(df, cats$V2[match(unlist(df$tick), cats$V1)])
+
+names(df) <- c("tick", "investors", "loc", "val", "out", "cat") 
+
+rm(cats)
+```
+
+Add price performance column to analysis
+```{r}
+ret <- read.csv(file = "price-performance.csv", header = FALSE, stringsAsFactors = FALSE)
+ret$V1[1] <- "ACST-CA"
+ret$V2 <- as.numeric(ret$V2)
+
+df <- cbind(df, ret$V2[match(unlist(df$tick), ret$V1)])
+
+names(df) <- c("tick", "investors", "loc", "val", "out", "cat", "ret") 
+
+rm(cats)
 ```
 
 Dominance of Bausch Health Companies
@@ -57,15 +96,12 @@ sum(df.company$total[df.company$tick != "BHC-US"])
 
 df[df$tick == "BHC-US",]
 
-ggplot(df.company) +
-  geom_col(aes(x = reorder(tick, -total), y = total, fill = cat)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 Remove Bausch Health Companies from the analysis
 ```{r}
 df <- df[df$tick != "BHC-US",]
-
+df.company <- df %>% group_by(tick, cat) %>% summarise(total = sum(val))
 ```
 
 
@@ -75,42 +111,61 @@ df.investor <- df %>% group_by(investors, loc) %>% summarise(count = n(), total 
 summary(df.investor)
 ```
 
+Summary of top 5 geographic regions
+```{r}
+sum(df.investor$total[df.investor$loc == "United States"])
+mean(df.investor$total[df.investor$loc == "United States"])
+median(df.investor$total[df.investor$loc == "United States"])
+
+median(df.investor$count[df.investor$loc == "United States"])
+mean(df.investor$count[df.investor$loc == "United States"])
+
+sum(df.investor$total[df.investor$loc == "Canada"])
+mean(df.investor$total[df.investor$loc == "Canada"])
+median(df.investor$total[df.investor$loc == "Canada"])
+
+median(df.investor$count[df.investor$loc == "Canada"])
+mean(df.investor$count[df.investor$loc == "Canada"])
+
+sum(df.investor$total[df.investor$loc == "United Kingdom"])
+mean(df.investor$total[df.investor$loc == "United Kingdom"])
+median(df.investor$total[df.investor$loc == "United Kingdom"])
+
+median(df.investor$count[df.investor$loc == "United Kingdom"])
+mean(df.investor$count[df.investor$loc == "United Kingdom"])
+
+sum(df.investor$total[df.investor$loc == "Switzerland"])
+mean(df.investor$total[df.investor$loc == "Switzerland"])
+median(df.investor$total[df.investor$loc == "Switzerland"])
+
+median(df.investor$count[df.investor$loc == "Switzerland"])
+mean(df.investor$count[df.investor$loc == "Switzerland"])
+
+sum(df.investor$total[df.investor$loc == "Israel"])
+mean(df.investor$total[df.investor$loc == "Israel"])
+median(df.investor$total[df.investor$loc == "Israel"])
+
+median(df.investor$count[df.investor$loc == "Israel"])
+mean(df.investor$count[df.investor$loc == "Israel"])
+
+```
 
 ```{r}
-ylab = c(20, 40, 60, 80, 100, 120, 140, 180, 200)
+df.investor$loc <- as.character(df.investor$loc) 
+
+df.investor$loc[!(df.investor$loc == "United States" | df.investor$loc == "Canada" | df.investor$loc == "United Kingdom" | df.investor$loc == "Switzerland" | df.investor$loc == "Israel")] <- "Other"
+
+ylab = c(20, 40, 60, 80, 100, 120, 140, 160, 180)
 
 png(file = "total-investments-v-number.png", width = 6, height = 3, units = 'in', res = 300)
 ggplot(df.investor) +
-  geom_point(aes(x = count, y = total), size = 2, colour = "#2d465f") +
+  geom_point(aes(x = count, y = total, colour = loc), size = 2) +
   scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
   scale_x_continuous(breaks = c(1:21)) +
-  labs(y = "Total investment ($)", x = "Number of investments")
+  labs(y = "Total investment ($)", x = "Number of investments", colour = "Location") +
+  scale_color_manual(values=c("#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
 dev.off()
 
-```
-
-Summary of top 5 geographic regions
-```{r}
-sum(df.investor$total[df.investor$loc == "Germany"])
-
-median(df.investor$count[df.investor$loc == "Germany"])
-
-df.investor$total[df.investor$loc == "Germany"]
-```
-
-Add company catagory tags to analysis
-```{r}
-cats <- read.csv(file = "catagories2.csv", header = FALSE, stringsAsFactors = FALSE)
-cats$V1[1] <- "ACST-CA"
-cats$V1
-
-cats <- unique(cats)
-
-df <- cbind(df, cats$V2[match(unlist(df$tick), cats$V1)])
-
-names(df) <- c("tick", "investors", "loc", "val", "out", "cat") 
-
-rm(cats)
 ```
 
 ```{r}
@@ -176,59 +231,121 @@ sum(df$val[df$cat == "Therapeutic R&D"]) / sum(df$val)
 
 ```
 
+```{r}
+df.tmp <- df
+
+df.tmp$loc <- as.character(df.tmp$loc) 
+
+df.tmp$loc[!(df.tmp$loc == "United States" | df.tmp$loc == "Canada")] <- "Other"
+
+ylab = c(400, 800, 1200, 1600, 2000)
+
+png(file = "investment-cat-by-loc.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(df.tmp) +
+  geom_col(aes(x = cat, y = val, fill = loc)) +
+  labs(y = "Total investment ($)", x= "", fill = "Location") +
+  scale_fill_manual(values=c("#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
+  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+dev.off()
+```
+
 
 ```{r}
 
 df.canada <- df.investor[(df.investor$loc == "Canada"),]
 df.us <- df.investor[(df.investor$loc == "United States"),]
 
-ggplot(df) +
-  geom_col(aes(y = val, fill = cat)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-
 ```
 
-
-
+Top Canadian Firms
 ```{r}
-
-```
-
-
-```{r}
-
+# By capital
 tmp <- arrange(df.investor[df.investor$loc == "Canada",], desc(total))
 tmp <- as.character(tmp$investors[1:10])
 
+ylab = c(20, 40, 60, 80, 100, 120, 140)
+
+png(file = "canadian-investors.png", width = 9, height = 4, units = 'in', res = 300)
 ggplot(df[df$investors %in% tmp,]) +
-  geom_col(aes(x = investors, y = val, fill = cat)) +
-   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  geom_col(aes(x = reorder(investors, -val, sum), y = val, fill = cat), colour = "black") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "", y = "Total investment ($)", fill = "Catagory") +
+  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
+  scale_fill_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
+dev.off()
 
+df$tick[df$investors == "Mackenzie Financial Corp."]
+df$tick[df$investors == "CI Investments, Inc."]
+df$tick[df$investors == "Mawer Investment Management Ltd."]
+df$tick[df$investors == "GLC Asset Management Group Ltd."]
+df$tick[df$investors == "Fidelity (Canada) Asset Management ULC"]
+df$tick[df$investors == "Fiera Capital Corp. (Investment Management)"]
+df$tick[df$investors == "CIBC Asset Management, Inc."]
+df$tick[df$investors == "BC Investment Management Corp."]
+df$tick[df$investors == "RBC Global Asset Management, Inc."]
+df$tick[df$investors == "EdgePoint Investment Group, Inc."]
 
-tmp <- arrange(df.investor[df.investor$loc == "United States",], desc(total))
+# By number of investments
+tmp <- arrange(df.investor[df.investor$loc == "Canada",], desc(count))
 tmp <- as.character(tmp$investors[1:10])
+tmp <- tmp[tmp != "Mackenzie Financial Corp."]
 
+ylab = c(2, 4, 6, 8, 10, 12, 14, 16)
+
+png(file = "canadian-investors2.png", width = 12, height = 8, units = 'in', res = 300)
 ggplot(df[df$investors %in% tmp,]) +
-  geom_col(aes(x = investors, y = val, fill = cat)) +
-   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-
-df$tick[df$investors == "Fidelity (Canada) Asset Management ULC"]
-df$tick[df$investors == "Connor, Clark & Lunn Investment Management Ltd."]
-df$tick[df$investors == "BMO Asset Management, Inc."]
-df$tick[df$investors == "Fidelity (Canada) Asset Management ULC"]
-df$tick[df$investors == "Fidelity (Canada) Asset Management ULC"]
-df$tick[df$investors == "Fidelity (Canada) Asset Management ULC"]
-df$tick[df$investors == "Fidelity (Canada) Asset Management ULC"]
-df$tick[df$investors == "Fidelity (Canada) Asset Management ULC"]
-
+  geom_col(aes(x = reorder(investors, -val, sum), y = val, fill = cat), colour = "black") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "", y = "Total investment ($)", fill = "Catagory") +
+  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
+  scale_fill_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
+dev.off()
 
 ```
 
+Top American Firms
+```{r}
+tmp <- arrange(df.investor[df.investor$loc == "United States",], desc(total))
+tmp <- as.character(tmp$investors[1:10])
 
+ylab = c(20, 40, 60, 80, 100, 120, 140, 160)
+
+png(file = "us-investors.png", width = 16.5, height = 6, units = 'in', res = 300)
+ggplot(df[df$investors %in% tmp,]) +
+  geom_col(aes(x = reorder(investors, -val, sum), y = val, fill = cat), colour = "grey") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "", y = "Total investment ($)", fill = "Catagory") +
+  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
+  scale_fill_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
+dev.off()
+
+
+df$tick[df$investors == "Fidelity Management & Research Co."]
+df$tick[df$investors == "OrbiMed Advisors LLC"]
+df$tick[df$investors == "Perceptive Advisors LLC"]
+df$tick[df$investors == "RTW Investments LP"]
+df$tick[df$investors == "Great Point Partners LLC"]
+df$tick[df$investors == "HealthCor Management LP"]
+df$tick[df$investors == "Baker Bros. Advisors LP"]
+df$tick[df$investors == "Farallon Capital Management LLC"]
+df$tick[df$investors == "Stadium Capital Management LLC"]
+df$tick[df$investors == "Millennium Management LLC"]
+
+```
+
+```{r}
+ylab = c(100, 200, 300, 400, 500, 600, 700, 800)
+
+png(file = "company-firm-loc.png", width = 12, height = 5, units = 'in', res = 300)
+ggplot(df.tmp) +
+  geom_col(aes(x = reorder(tick, -val, sum), y = val, fill = loc)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "", y = "Total investment ($)", fill = "Location") +
+  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
+  scale_fill_manual(values=c("#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
+dev.off()
+```
 
 
 
