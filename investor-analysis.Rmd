@@ -84,7 +84,7 @@ df <- cbind(df, ret$V2[match(unlist(df$tick), ret$V1)])
 
 names(df) <- c("tick", "investors", "loc", "val", "out", "cat", "ret") 
 
-rm(cats)
+rm(ret)
 ```
 
 Dominance of Bausch Health Companies
