@@ -87,10 +87,13 @@ names(df) <- c("tick", "investors", "loc", "val", "out", "cat", "ret")
 rm(ret)
 ```
 
+Rework dataframe to summarize by individual companies
+```{r}
+df.company <- df %>% group_by(tick, cat, ret) %>% summarise(count = n(), total = sum(val))
+```
+
 Dominance of Bausch Health Companies
 ```{r}
-df.company <- df %>% group_by(tick, cat) %>% summarise(total = sum(val))
-
 df.company$total[df.company$tick == "BHC-US"]
 sum(df.company$total[df.company$tick != "BHC-US"])
 
@@ -99,13 +102,23 @@ sum(df.company$total[df.company$tick != "BHC-US"])
 Remove Bausch Health Companies from the analysis
 ```{r}
 df <- df[df$tick != "BHC-US",]
-df.company <- df %>% group_by(tick, cat) %>% summarise(total = sum(val))
 ```
 
-
-
+Rework dataframe to summarize by individual companies without Bausch
 ```{r}
-df.investor <- df %>% group_by(investors, loc) %>% summarise(count = n(), total = sum(val))
+df.company <- df %>% group_by(tick, cat) %>% summarise(count = n(), total = sum(val))
+
+mean(df.company$count)
+median(df.company$count)
+
+mean(df.company$total)
+median(df.company$total)
+
+```
+
+Rework dataframe to summarize by individual investors
+```{r}
+df.investor <- df %>% group_by(investors, loc) %>% summarise(count = n(), total = sum(val), w.mean_return = weighted.mean(ret, val))
 ```
 
 Overall summary
@@ -157,21 +170,16 @@ median(df.investor$count[df.investor$loc == "Israel"])
 mean(df.investor$count[df.investor$loc == "Israel"])
 
 
-
-
 sum(df.investor$total[!(df.investor$loc == "United States" | df.investor$loc == "Canada")])
-
-
-
-mean(df.investor$total[df.investor$loc == "Israel"])
-median(df.investor$total[df.investor$loc == "Israel"])
+mean(df.investor$total[!(df.investor$loc == "United States" | df.investor$loc == "Canada")])
+median(df.investor$total[!(df.investor$loc == "United States" | df.investor$loc == "Canada")])
 
 ```
 
 ```{r}
 df.investor$loc <- as.character(df.investor$loc) 
 
-df.investor$loc[!(df.investor$loc == "United States" | df.investor$loc == "Canada" | df.investor$loc == "United Kingdom" | df.investor$loc == "Switzerland" | df.investor$loc == "Israel")] <- "Other"
+df.investor$loc[!(df.investor$loc == "United States" | df.investor$loc == "Canada")] <- "Other"
 
 ylab = c(20, 40, 60, 80, 100, 120, 140, 160, 180)
 
@@ -181,13 +189,14 @@ ggplot(df.investor) +
   scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
   scale_x_continuous(breaks = c(1:21)) +
   labs(y = "Total investment ($)", x = "Number of investments", colour = "Location") +
-  scale_color_manual(values=c("#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
+  #scale_color_manual(values=c("#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
+  scale_color_manual(values=c("#A8A9AD", "#118AB2", "#2d465f", "#191919"))
 dev.off()
 
 ```
 
 ```{r}
-df.catagory <- df %>% group_by(cat, loc) %>% summarise(total = sum(val))
+df.catagory <- df %>% group_by(cat, loc) %>% summarise(count = n(), total = sum(val))
 
 sum(df$val[(df$loc == "Canada" & df$cat == "Commercial Therapeutics")])
 sum(df$val[(df$loc == "Canada" & df$cat == "Commercial Therapeutics")]) / sum(df$val[(df$loc == "Canada")])
@@ -207,8 +216,6 @@ sum(df$val[(df$loc == "Canada" & df$cat == "Medical Supplies")]) / sum(df$val[(d
 sum(df$val[(df$loc == "Canada" & df$cat == "Therapeutic R&D")])
 sum(df$val[(df$loc == "Canada" & df$cat == "Therapeutic R&D")]) / sum(df$val[(df$loc == "Canada")])
 
-
-
 sum(df$val[(df$loc == "United States" & df$cat == "Commercial Therapeutics")])
 sum(df$val[(df$loc == "United States" & df$cat == "Commercial Therapeutics")]) / sum(df$val[(df$loc == "United States")])
 
@@ -226,8 +233,6 @@ sum(df$val[(df$loc == "United States" & df$cat == "Medical Supplies")]) / sum(df
 
 sum(df$val[(df$loc == "United States" & df$cat == "Therapeutic R&D")])
 sum(df$val[(df$loc == "United States" & df$cat == "Therapeutic R&D")]) / sum(df$val[(df$loc == "United States")])
-
-
 
 sum(df$val[df$cat == "Commercial Therapeutics"])
 sum(df$val[df$cat == "Commercial Therapeutics"]) / sum(df$val)
@@ -268,12 +273,45 @@ ggplot(df.tmp) +
 dev.off()
 ```
 
+Looking at the returns from the different catagories
+```{r}
+df.tmp <- df.company[!is.na(df.company$ret),]
+df.tmp <- df.tmp %>% group_by(cat) %>% summarise(mean = weighted.mean(ret))
 
+png(file = "returns-by-cat.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(df.company) +
+  #geom_col(aes(x = reorder(cat, -mean), y = mean), fill = "#2d465f") +
+  geom_boxplot(aes(x = cat, y = ret)) +
+  geom_jitter(aes(x = cat, y = ret), size = 2, width = 0.2,  colour = "#2d465f") +
+  labs(y = "YTD Return (%)", x= "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+dev.off()
+
+```
+
+Returns by geography 
 ```{r}
 
+png(file = "returns-by-geo.png", width = 6, height = 4, units = 'in', res = 300)
+ggplot(df.investor) +
+  geom_boxplot(aes(x = loc, y = w.mean_return), outlier.shape = NA) +
+  geom_jitter(aes(x = loc, y = w.mean_return), size = 1, width = 0.2, colour = "#2d465f") +
+  labs(y = "Weighted Average YTD Return (%)", x= "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+dev.off()
+
+df.tmp <- df.investor[!is.na(df.investor$w.mean_return),]
+
+mean(df.tmp$w.mean_return[df.tmp$loc == "Canada"])
+mean(df.tmp$w.mean_return[df.tmp$loc == "United States"])
+mean(df.tmp$w.mean_return[df.tmp$loc == "Other"])
+
+```
+
+
+```{r}
 df.canada <- df.investor[(df.investor$loc == "Canada"),]
 df.us <- df.investor[(df.investor$loc == "United States"),]
-
 ```
 
 Top Canadian Firms
@@ -320,6 +358,19 @@ ggplot(df[df$investors %in% tmp,]) +
   scale_fill_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
 dev.off()
 
+# By weighted return on investments
+tmp <- arrange(df.investor[df.investor$loc == "Canada",], desc(w.mean_return))
+tmp <- as.character(tmp$investors[1:10])
+
+png(file = "canadian-investors3.png", width = 15, height = 6, units = 'in', res = 300)
+ggplot(df[df$investors %in% tmp,]) +
+  geom_point(aes(x = investors, y = ret, colour = cat, size = val)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "", y = "YTD return (%)", colour = "Catagory", size = "") +
+  scale_colour_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
+  scale_size(guide = 'none')
+dev.off()
+
 ```
 
 Top American Firms
@@ -338,7 +389,6 @@ ggplot(df[df$investors %in% tmp,]) +
   scale_fill_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
 dev.off()
 
-
 df$tick[df$investors == "Fidelity Management & Research Co."]
 df$tick[df$investors == "OrbiMed Advisors LLC"]
 df$tick[df$investors == "Perceptive Advisors LLC"]
@@ -349,6 +399,20 @@ df$tick[df$investors == "Baker Bros. Advisors LP"]
 df$tick[df$investors == "Farallon Capital Management LLC"]
 df$tick[df$investors == "Stadium Capital Management LLC"]
 df$tick[df$investors == "Millennium Management LLC"]
+
+# By weighted return on investments
+tmp <- arrange(df.investor[df.investor$loc == "United States",], desc(w.mean_return))
+
+tmp <- as.character(tmp$investors[1:10])
+
+png(file = "us-investors2.png", width = 15, height = 6, units = 'in', res = 300)
+ggplot(df[df$investors %in% tmp,]) +
+  geom_point(aes(x = investors, y = ret, colour = cat, size = val)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "", y = "YTD return (%)", colour = "Catagory", size = "") +
+  scale_colour_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
+  scale_size(guide = 'none')
+dev.off()
 
 ```
 
