@@ -94,8 +94,6 @@ df.company <- df %>% group_by(tick, cat) %>% summarise(total = sum(val))
 df.company$total[df.company$tick == "BHC-US"]
 sum(df.company$total[df.company$tick != "BHC-US"])
 
-df[df$tick == "BHC-US",]
-
 ```
 
 Remove Bausch Health Companies from the analysis
@@ -108,8 +106,18 @@ df.company <- df %>% group_by(tick, cat) %>% summarise(total = sum(val))
 
 ```{r}
 df.investor <- df %>% group_by(investors, loc) %>% summarise(count = n(), total = sum(val))
-summary(df.investor)
 ```
+
+Overall summary
+```{r}
+summary(df.investor)
+length(unique(df.investor$investors))
+unique(df.investor$loc)
+
+sum(df.investor$total)
+
+```
+
 
 Summary of top 5 geographic regions
 ```{r}
@@ -147,6 +155,16 @@ median(df.investor$total[df.investor$loc == "Israel"])
 
 median(df.investor$count[df.investor$loc == "Israel"])
 mean(df.investor$count[df.investor$loc == "Israel"])
+
+
+
+
+sum(df.investor$total[!(df.investor$loc == "United States" | df.investor$loc == "Canada")])
+
+
+
+mean(df.investor$total[df.investor$loc == "Israel"])
+median(df.investor$total[df.investor$loc == "Israel"])
 
 ```
 
