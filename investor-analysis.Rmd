@@ -1,24 +1,37 @@
 ---
-title: "R Notebook"
-output: html_notebook
+title: 
+output:
+  pdf_document: default
 ---
 
-Import required libraries
-```{r}
-library(tidyverse)
+```{r, echo=FALSE, out.width="50%", fig.align='left'}
+knitr::include_graphics("images/paradigm-logo.jpg")
 ```
 
-Import data
-```{r}
+# Canadian Healthcare Investor Report
+For 30-days prior to `r format(Sys.Date(), "%B %d %Y")`
+
+
+```{r Libraries, include=FALSE}
+library(tidyverse)
+library(knitr)
+#library(kableExtra)
+```
+
+```{r Data, echo=FALSE}
 names <- read.csv("healthcare-investors-names.csv", header = TRUE)
 country <- read.csv("healthcare-investors-country.csv", header = TRUE)
-value <- read.csv("healthcare-investors-value.csv", header = TRUE)
-os <- read.csv("healthcare-investors-os.csv", header = TRUE)
+position <- read.csv("healthcare-investors-position.csv", header = TRUE, stringsAsFactors = FALSE)
+dposition <- read.csv("healthcare-investors-dposition.csv", header = TRUE, stringsAsFactors = FALSE)
+value <- read.csv("healthcare-investors-value.csv", header = TRUE, stringsAsFactors = FALSE)
+os <- read.csv("healthcare-investors-os.csv", header = TRUE, stringsAsFactors = FALSE)
+cats <- read.csv(file = "catagories2.csv", header = FALSE, stringsAsFactors = FALSE)
+
+coverage = c("TBP-CA", "PRN-CA", "GUD-CA", "ZYME-US", "EDT-CA", "ATE-CA")
 
 ```
 
-
-```{r}
+```{r Clean, include = FALSE}
 df <- data.frame()
 
 for (ticker in names(names)){
@@ -29,11 +42,13 @@ for (ticker in names(names)){
   
   investors <- as.character(names[,ticker][names[,ticker] != ""])
   tick <- rep(ticker, length(investors))
+  pos <- position[,ticker][!is.na(position[,ticker])]
+  dpos <- dposition[,ticker][!is.na(dposition[,ticker])]
   loc <- as.character(country[,ticker][country[,ticker] != ""])
   val <- value[,ticker][!is.na(value[,ticker])]
   out <- os[,ticker][!is.na(os[,ticker])]
   
-  t <- cbind(tick, investors, loc, val, out)
+  t <- cbind(tick, investors, pos, dpos, val, out, loc)
   
   df <- rbind(df,t)
 }
@@ -45,7 +60,25 @@ df$tick <- sub("[.]", "-", df$tick)
 
 df$val <- as.numeric(as.character(df$val))
 df$out <- as.numeric(as.character(df$out))
+df$pos <- as.numeric(as.character(df$pos))
+df$dpos <- as.numeric(as.character(df$dpos))
 
+# Add catagory tags to dataframe
+cats$V1[1] <- "ACST-CA"
+
+cats <- unique(cats)
+
+df <- cbind(df, cats$V2[match(unlist(df$tick), cats$V1)])
+
+# Remove Bauch Health from analysis 
+df <- df[df$tick != "BHC-US",]
+
+names(df) <- c("Ticker", "Investor", "Position", "dPosition", "Value", "%OS", "Location", "Category") 
+
+
+
+# Cleanup variables
+rm(cats)
 rm(country)
 rm(names)
 rm(os)
@@ -57,376 +90,70 @@ rm(loc)
 rm(val)
 rm(out)
 rm(ticker)
+rm(position)
+rm(dposition)
+```
+
+```{r Subsetting, echo=FALSE}
+df.company <- df %>% group_by(Ticker, Category) %>% summarise(count = n(), total = sum(Value))
+df.investor <- df %>% group_by(Investor, Location) %>% summarise(count = n(), total = sum(Value))
+
+df.trading <- df %>% group_by(Investor) %>% summarise(Volume = sum(abs(dPosition))) %>% filter(Volume != 0) %>% arrange(-Volume)
 
 ```
 
-Add company catagory tags to analysis
-```{r}
-cats <- read.csv(file = "catagories2.csv", header = FALSE, stringsAsFactors = FALSE)
-cats$V1[1] <- "ACST-CA"
-
-cats <- unique(cats)
-
-df <- cbind(df, cats$V2[match(unlist(df$tick), cats$V1)])
-
-names(df) <- c("tick", "investors", "loc", "val", "out", "cat") 
-
-rm(cats)
+# Trading:
+**Coverage:**
+```{r echo=FALSE, results='asis'}
+kable(df[(df$Ticker %in% coverage & df$dPosition != 0),1:4], caption = "Change in Ownership Positions Over Past 30-Days", row.names = FALSE)
 ```
 
-Add price performance column to analysis
-```{r}
-ret <- read.csv(file = "price-performance.csv", header = FALSE, stringsAsFactors = FALSE)
-ret$V1[1] <- "ACST-CA"
-ret$V2 <- as.numeric(ret$V2)
+\newpage
 
-df <- cbind(df, ret$V2[match(unlist(df$tick), ret$V1)])
-
-names(df) <- c("tick", "investors", "loc", "val", "out", "cat", "ret") 
-
-rm(ret)
+**Universe:**
+```{r echo=FALSE, results='asis'}
+kable(df.trading, caption = "Absolute Trading Volume Over Past 30-Days by Fund", row.names = NA)
 ```
 
-Rework dataframe to summarize by individual companies
-```{r}
-df.company <- df %>% group_by(tick, cat, ret) %>% summarise(count = n(), total = sum(val))
-```
+\newpage
 
-Dominance of Bausch Health Companies
-```{r}
-df.company$total[df.company$tick == "BHC-US"]
-sum(df.company$total[df.company$tick != "BHC-US"])
+**Total Trading Summary**
+```{r echo=FALSE, results='asis'}
+kable(df[(df$dPosition != 0),1:4], caption = "Net Total Change in Position Over Past 30-Days by Company", row.names = NA)
 
 ```
 
-Remove Bausch Health Companies from the analysis
-```{r}
-df <- df[df$tick != "BHC-US",]
+\newpage
+
+# Holders:
+**Antibe Therapeutics (ATE-CA)**
+```{r echo=FALSE, results='asis'}
+kable(df[df$Ticker == "ATE-CA",2:6], row.names = NA)
 ```
 
-Rework dataframe to summarize by individual companies without Bausch
-```{r}
-df.company <- df %>% group_by(tick, cat) %>% summarise(count = n(), total = sum(val))
-
-mean(df.company$count)
-median(df.company$count)
-
-mean(df.company$total)
-median(df.company$total)
-
+**Knight Therapeutics (GUD-CA)**
+```{r echo=FALSE, results='asis'}
+kable(df[df$Ticker == "GUD-CA",2:6], row.names = NA)
 ```
 
-Rework dataframe to summarize by individual investors
-```{r}
-df.investor <- df %>% group_by(investors, loc) %>% summarise(count = n(), total = sum(val), w.mean_return = weighted.mean(ret, val))
+**Profound Medical (PRN-CA)**
+```{r echo=FALSE, results='asis'}
+kable(df[df$Ticker == "PRN-CA",2:6], row.names = NA)
 ```
 
-Overall summary
-```{r}
-summary(df.investor)
-length(unique(df.investor$investors))
-unique(df.investor$loc)
-
-sum(df.investor$total)
-
+**Spectral Medical (EDT-CA)**
+```{r echo=FALSE, results='asis'}
+kable(df[df$Ticker == "EDT-CA",2:6], row.names = NA)
 ```
 
-
-Summary of top 5 geographic regions
-```{r}
-sum(df.investor$total[df.investor$loc == "United States"])
-mean(df.investor$total[df.investor$loc == "United States"])
-median(df.investor$total[df.investor$loc == "United States"])
-
-median(df.investor$count[df.investor$loc == "United States"])
-mean(df.investor$count[df.investor$loc == "United States"])
-
-sum(df.investor$total[df.investor$loc == "Canada"])
-mean(df.investor$total[df.investor$loc == "Canada"])
-median(df.investor$total[df.investor$loc == "Canada"])
-
-median(df.investor$count[df.investor$loc == "Canada"])
-mean(df.investor$count[df.investor$loc == "Canada"])
-
-sum(df.investor$total[df.investor$loc == "United Kingdom"])
-mean(df.investor$total[df.investor$loc == "United Kingdom"])
-median(df.investor$total[df.investor$loc == "United Kingdom"])
-
-median(df.investor$count[df.investor$loc == "United Kingdom"])
-mean(df.investor$count[df.investor$loc == "United Kingdom"])
-
-sum(df.investor$total[df.investor$loc == "Switzerland"])
-mean(df.investor$total[df.investor$loc == "Switzerland"])
-median(df.investor$total[df.investor$loc == "Switzerland"])
-
-median(df.investor$count[df.investor$loc == "Switzerland"])
-mean(df.investor$count[df.investor$loc == "Switzerland"])
-
-sum(df.investor$total[df.investor$loc == "Israel"])
-mean(df.investor$total[df.investor$loc == "Israel"])
-median(df.investor$total[df.investor$loc == "Israel"])
-
-median(df.investor$count[df.investor$loc == "Israel"])
-mean(df.investor$count[df.investor$loc == "Israel"])
-
-
-sum(df.investor$total[!(df.investor$loc == "United States" | df.investor$loc == "Canada")])
-mean(df.investor$total[!(df.investor$loc == "United States" | df.investor$loc == "Canada")])
-median(df.investor$total[!(df.investor$loc == "United States" | df.investor$loc == "Canada")])
-
+**Tetra Bio-Pharma (TBP-CA)**
+```{r echo=FALSE, results='asis'}
+kable(df[df$Ticker == "TBP-CA",2:6], row.names = NA)
 ```
 
-```{r}
-df.investor$loc <- as.character(df.investor$loc) 
-
-df.investor$loc[!(df.investor$loc == "United States" | df.investor$loc == "Canada")] <- "Other"
-
-ylab = c(20, 40, 60, 80, 100, 120, 140, 160, 180)
-
-png(file = "total-investments-v-number.png", width = 6, height = 3, units = 'in', res = 300)
-ggplot(df.investor) +
-  geom_point(aes(x = count, y = total, colour = loc), size = 2) +
-  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
-  scale_x_continuous(breaks = c(1:21)) +
-  labs(y = "Total investment ($)", x = "Number of investments", colour = "Location") +
-  #scale_color_manual(values=c("#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
-  scale_color_manual(values=c("#A8A9AD", "#118AB2", "#2d465f", "#191919"))
-dev.off()
-
-```
-
-```{r}
-df.catagory <- df %>% group_by(cat, loc) %>% summarise(count = n(), total = sum(val))
-
-sum(df$val[(df$loc == "Canada" & df$cat == "Commercial Therapeutics")])
-sum(df$val[(df$loc == "Canada" & df$cat == "Commercial Therapeutics")]) / sum(df$val[(df$loc == "Canada")])
-
-sum(df$val[(df$loc == "Canada" & df$cat == "Consumer Health")])
-sum(df$val[(df$loc == "Canada" & df$cat == "Consumer Health")]) / sum(df$val[(df$loc == "Canada")])
-
-sum(df$val[(df$loc == "Canada" & df$cat == "Healthcare Services")])
-sum(df$val[(df$loc == "Canada" & df$cat == "Healthcare Services")]) / sum(df$val[(df$loc == "Canada")])
-
-sum(df$val[(df$loc == "Canada" & df$cat == "Medical Devices")])
-sum(df$val[(df$loc == "Canada" & df$cat == "Medical Devices")]) / sum(df$val[(df$loc == "Canada")])
-
-sum(df$val[(df$loc == "Canada" & df$cat == "Medical Supplies")])
-sum(df$val[(df$loc == "Canada" & df$cat == "Medical Supplies")]) / sum(df$val[(df$loc == "Canada")])
-
-sum(df$val[(df$loc == "Canada" & df$cat == "Therapeutic R&D")])
-sum(df$val[(df$loc == "Canada" & df$cat == "Therapeutic R&D")]) / sum(df$val[(df$loc == "Canada")])
-
-sum(df$val[(df$loc == "United States" & df$cat == "Commercial Therapeutics")])
-sum(df$val[(df$loc == "United States" & df$cat == "Commercial Therapeutics")]) / sum(df$val[(df$loc == "United States")])
-
-sum(df$val[(df$loc == "United States" & df$cat == "Consumer Health")])
-sum(df$val[(df$loc == "United States" & df$cat == "Consumer Health")]) / sum(df$val[(df$loc == "United States")])
-
-sum(df$val[(df$loc == "United States" & df$cat == "Healthcare Services")])
-sum(df$val[(df$loc == "United States" & df$cat == "Healthcare Services")]) / sum(df$val[(df$loc == "United States")])
-
-sum(df$val[(df$loc == "United States" & df$cat == "Medical Devices")])
-sum(df$val[(df$loc == "United States" & df$cat == "Medical Devices")]) / sum(df$val[(df$loc == "United States")])
-
-sum(df$val[(df$loc == "United States" & df$cat == "Medical Supplies")])
-sum(df$val[(df$loc == "United States" & df$cat == "Medical Supplies")]) / sum(df$val[(df$loc == "United States")])
-
-sum(df$val[(df$loc == "United States" & df$cat == "Therapeutic R&D")])
-sum(df$val[(df$loc == "United States" & df$cat == "Therapeutic R&D")]) / sum(df$val[(df$loc == "United States")])
-
-sum(df$val[df$cat == "Commercial Therapeutics"])
-sum(df$val[df$cat == "Commercial Therapeutics"]) / sum(df$val)
-
-sum(df$val[df$cat == "Consumer Health"])
-sum(df$val[df$cat == "Consumer Health"]) / sum(df$val)
-
-sum(df$val[df$cat == "Healthcare Services"])
-sum(df$val[df$cat == "Healthcare Services"]) / sum(df$val)
-
-sum(df$val[df$cat == "Medical Devices"])
-sum(df$val[df$cat == "Medical Devices"]) / sum(df$val)
-
-sum(df$val[df$cat == "Medical Supplies"])
-sum(df$val[df$cat == "Medical Supplies"]) / sum(df$val)
-
-sum(df$val[df$cat == "Therapeutic R&D"])
-sum(df$val[df$cat == "Therapeutic R&D"]) / sum(df$val)
-
-```
-
-```{r}
-df.tmp <- df
-
-df.tmp$loc <- as.character(df.tmp$loc) 
-
-df.tmp$loc[!(df.tmp$loc == "United States" | df.tmp$loc == "Canada")] <- "Other"
-
-ylab = c(400, 800, 1200, 1600, 2000)
-
-png(file = "investment-cat-by-loc.png", width = 6, height = 3, units = 'in', res = 300)
-ggplot(df.tmp) +
-  geom_col(aes(x = cat, y = val, fill = loc)) +
-  labs(y = "Total investment ($)", x= "", fill = "Location") +
-  scale_fill_manual(values=c("#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
-  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-dev.off()
-```
-
-Looking at the returns from the different catagories
-```{r}
-df.tmp <- df.company[!is.na(df.company$ret),]
-df.tmp <- df.tmp %>% group_by(cat) %>% summarise(mean = weighted.mean(ret))
-
-png(file = "returns-by-cat.png", width = 6, height = 3, units = 'in', res = 300)
-ggplot(df.company) +
-  #geom_col(aes(x = reorder(cat, -mean), y = mean), fill = "#2d465f") +
-  geom_boxplot(aes(x = cat, y = ret)) +
-  geom_jitter(aes(x = cat, y = ret), size = 2, width = 0.2,  colour = "#2d465f") +
-  labs(y = "YTD Return (%)", x= "") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-dev.off()
-
-```
-
-Returns by geography 
-```{r}
-
-png(file = "returns-by-geo.png", width = 6, height = 4, units = 'in', res = 300)
-ggplot(df.investor) +
-  geom_boxplot(aes(x = loc, y = w.mean_return), outlier.shape = NA) +
-  geom_jitter(aes(x = loc, y = w.mean_return), size = 1, width = 0.2, colour = "#2d465f") +
-  labs(y = "Weighted Average YTD Return (%)", x= "") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-dev.off()
-
-df.tmp <- df.investor[!is.na(df.investor$w.mean_return),]
-
-mean(df.tmp$w.mean_return[df.tmp$loc == "Canada"])
-mean(df.tmp$w.mean_return[df.tmp$loc == "United States"])
-mean(df.tmp$w.mean_return[df.tmp$loc == "Other"])
-
-```
-
-
-```{r}
-df.canada <- df.investor[(df.investor$loc == "Canada"),]
-df.us <- df.investor[(df.investor$loc == "United States"),]
-```
-
-Top Canadian Firms
-```{r}
-# By capital
-tmp <- arrange(df.investor[df.investor$loc == "Canada",], desc(total))
-tmp <- as.character(tmp$investors[1:10])
-
-ylab = c(20, 40, 60, 80, 100, 120, 140)
-
-png(file = "canadian-investors.png", width = 9, height = 4, units = 'in', res = 300)
-ggplot(df[df$investors %in% tmp,]) +
-  geom_col(aes(x = reorder(investors, -val, sum), y = val, fill = cat), colour = "black") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(x = "", y = "Total investment ($)", fill = "Catagory") +
-  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
-  scale_fill_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
-dev.off()
-
-df$tick[df$investors == "Mackenzie Financial Corp."]
-df$tick[df$investors == "CI Investments, Inc."]
-df$tick[df$investors == "Mawer Investment Management Ltd."]
-df$tick[df$investors == "GLC Asset Management Group Ltd."]
-df$tick[df$investors == "Fidelity (Canada) Asset Management ULC"]
-df$tick[df$investors == "Fiera Capital Corp. (Investment Management)"]
-df$tick[df$investors == "CIBC Asset Management, Inc."]
-df$tick[df$investors == "BC Investment Management Corp."]
-df$tick[df$investors == "RBC Global Asset Management, Inc."]
-df$tick[df$investors == "EdgePoint Investment Group, Inc."]
-
-# By number of investments
-tmp <- arrange(df.investor[df.investor$loc == "Canada",], desc(count))
-tmp <- as.character(tmp$investors[1:10])
-tmp <- tmp[tmp != "Mackenzie Financial Corp."]
-
-ylab = c(2, 4, 6, 8, 10, 12, 14, 16)
-
-png(file = "canadian-investors2.png", width = 12, height = 8, units = 'in', res = 300)
-ggplot(df[df$investors %in% tmp,]) +
-  geom_col(aes(x = reorder(investors, -val, sum), y = val, fill = cat), colour = "black") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(x = "", y = "Total investment ($)", fill = "Catagory") +
-  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
-  scale_fill_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
-dev.off()
-
-# By weighted return on investments
-tmp <- arrange(df.investor[df.investor$loc == "Canada",], desc(w.mean_return))
-tmp <- as.character(tmp$investors[1:10])
-
-png(file = "canadian-investors3.png", width = 15, height = 6, units = 'in', res = 300)
-ggplot(df[df$investors %in% tmp,]) +
-  geom_point(aes(x = investors, y = ret, colour = cat, size = val)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(x = "", y = "YTD return (%)", colour = "Catagory", size = "") +
-  scale_colour_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
-  scale_size(guide = 'none')
-dev.off()
-
-```
-
-Top American Firms
-```{r}
-tmp <- arrange(df.investor[df.investor$loc == "United States",], desc(total))
-tmp <- as.character(tmp$investors[1:10])
-
-ylab = c(20, 40, 60, 80, 100, 120, 140, 160)
-
-png(file = "us-investors.png", width = 16.5, height = 6, units = 'in', res = 300)
-ggplot(df[df$investors %in% tmp,]) +
-  geom_col(aes(x = reorder(investors, -val, sum), y = val, fill = cat), colour = "grey") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(x = "", y = "Total investment ($)", fill = "Catagory") +
-  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
-  scale_fill_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
-dev.off()
-
-df$tick[df$investors == "Fidelity Management & Research Co."]
-df$tick[df$investors == "OrbiMed Advisors LLC"]
-df$tick[df$investors == "Perceptive Advisors LLC"]
-df$tick[df$investors == "RTW Investments LP"]
-df$tick[df$investors == "Great Point Partners LLC"]
-df$tick[df$investors == "HealthCor Management LP"]
-df$tick[df$investors == "Baker Bros. Advisors LP"]
-df$tick[df$investors == "Farallon Capital Management LLC"]
-df$tick[df$investors == "Stadium Capital Management LLC"]
-df$tick[df$investors == "Millennium Management LLC"]
-
-# By weighted return on investments
-tmp <- arrange(df.investor[df.investor$loc == "United States",], desc(w.mean_return))
-
-tmp <- as.character(tmp$investors[1:10])
-
-png(file = "us-investors2.png", width = 15, height = 6, units = 'in', res = 300)
-ggplot(df[df$investors %in% tmp,]) +
-  geom_point(aes(x = investors, y = ret, colour = cat, size = val)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(x = "", y = "YTD return (%)", colour = "Catagory", size = "") +
-  scale_colour_manual(values=c("#eff3ff", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
-  scale_size(guide = 'none')
-dev.off()
-
-```
-
-```{r}
-ylab = c(100, 200, 300, 400, 500, 600, 700, 800)
-
-png(file = "company-firm-loc.png", width = 12, height = 5, units = 'in', res = 300)
-ggplot(df.tmp) +
-  geom_col(aes(x = reorder(tick, -val, sum), y = val, fill = loc)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(x = "", y = "Total investment ($)", fill = "Location") +
-  scale_y_continuous(labels = paste0(ylab, "M"), breaks = 10^6 * ylab) +
-  scale_fill_manual(values=c("#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
-dev.off()
+**Zymeworks**
+```{r echo=FALSE, results='asis'}
+kable(df[df$Ticker == "ZYME-US",2:6], row.names = NA)
 ```
 
 

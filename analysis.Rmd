@@ -16,7 +16,7 @@ require(lubridate) # For summarizing years and date
 ```{r}
 
 private <- read.csv(file = "PitchBook_scan.csv", stringsAsFactors = FALSE)
-public <- read.csv(file = "CAPIQ_scan.csv", stringsAsFactors = FALSE)
+public <- read.csv(file = "Q1-2020.csv", stringsAsFactors = FALSE)
 
 # Only want deals that have been completed
 private <- private[private$Deal.Status == "Completed",]
@@ -27,16 +27,18 @@ public <- public[public$Transaction.Status == "Closed",]
 
 Prepare the public data
 ```{r}
-public <- public %>% select(Target.Issuer, Exchange.Ticker, ï..All.Transactions.Announced.Date, Transaction.Types, Total.Transaction.Value..CADmm..Historical.rate., Buyers.Investors, Business.Description..Target.Issuer.)
+public$ï..All.Transactions.Announced.Date <- as.Date(public$ï..All.Transactions.Announced.Date, "%m-%d-%Y")
+
+public <- public %>% select(Target.Issuer, Exchange.Ticker, ï..All.Transactions.Announced.Date, Column1, Transaction.Types, Total.Transaction.Value..CADmm..Historical.rate., Buyers.Investors, Business.Description..Target.Issuer.)
 
 
-names(public) <- c("Company", "Ticker", "Date", "Type", "Size", "Investors", "Description")
+names(public) <- c("Company", "Ticker", "Date", "Category", "Type", "Size", "Investors", "Description")
 
 # Format the deal size column
 public$Size <- as.numeric(public$Size)
 
 # Format the date column
-public$Date<- as.Date(public$Date, format = '%m/%d/%Y')
+$public$Date<- as.Date(public$Date, format = '%m/%d/%Y')
 
 # Remove the Merger/Acquisitions
 public <- public[public$Type != "Merger/Acquisition",]
@@ -146,6 +148,8 @@ length(unique(df$Company[df$Ticker == "private"]))
 length(unique(df$Company[df$Ticker == "public"]))
 
 #Deal Size Statistics
+summary(df$Size)
+
 summary(df$Size[df$Ticker == "private"])
 summary(df$Size[df$Ticker == "public"])
 
@@ -158,6 +162,8 @@ summary(df$Size[df$Type == "Public Offering"])
 summary(df$Size[df$Type == "Private Placement"])
 
 #Total Amount Raised
+sum(df$Size)
+
 sum(df$Size[(df$Ticker == "private" & !is.na(df$Size))])
 sum(df$Size[(df$Ticker == "public" & !is.na(df$Size))])
 
@@ -253,6 +259,8 @@ Analyze Deals by Catagory: Remove Accelerator/Incubator Deals; greater than 3M
 ```{r}
 df.category <- df[(!is.na(df$Category) & df$Type != "Accelerator/Incubator" & df$Size >= 3),] 
 
+df.category <- df
+
 length(df.category$Size[(df.category$Category == "Therapeutic R&D" & !is.na(df.category$Size))])
 median(df.category$Size[(df.category$Category == "Therapeutic R&D" & !is.na(df.category$Size))])
 mean(df.category$Size[(df.category$Category == "Therapeutic R&D" & !is.na(df.category$Size))])
@@ -289,7 +297,7 @@ ggplot(df.category[!is.na(df.category$Category),]) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_fill_manual(values=c("#A8A9AD", "#56B4E9", "#118AB2", "#2d465f")) +
   labs(x = "", y = "Number of deals", fill = "Deal Type") +
-  scale_y_continuous(breaks = c(25, 50, 75, 100, 125))
+  scale_y_continuous(breaks = c(2, 4, 6, 8, 10))
 dev.off()
 
 png(file = "catagory-by-amount.png", width = 6, height = 3, units = 'in', res = 300)
@@ -298,7 +306,7 @@ ggplot(df.category[!is.na(df.category$Category),]) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_fill_manual(values=c("#A8A9AD", "#56B4E9", "#118AB2", "#2d465f")) +
   labs(x = "", y = "Total deal value ($M)", fill = "Deal Type") +
-  scale_y_continuous(breaks = c(500, 1000, 1500, 2000, 2500, 3000))
+  scale_y_continuous(breaks = c(50, 100, 150, 200))
 dev.off()
 
 png(file = "sub-catagory-by-deal.png", width = 6, height = 3, units = 'in', res = 300)
@@ -368,19 +376,20 @@ df2.total <- df2.total %>% mutate(date = as.Date(paste0(year, "-", month,"-01"),
 png(file = "timecourse-deals-by-cat-num.png", width = 6, height = 3, units = 'in', res = 300)
 ggplot(df2.summary) +
   geom_bar(aes(x = date, y = count, fill = Category), colour = "black", stat = "identity") +
-  labs(y = "Number of deals", x = "") + 
-  scale_x_date(date_labels = "%Y") +
-  scale_fill_manual(values=c("#eff3ff", "#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919"))
+  labs(y = "Number of deals", x = "Month") + 
+  scale_x_date(date_labels = "%m") +
+  scale_fill_manual(values=c("#eff3ff", "#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
+  scale_y_continuous(breaks = c(2, 4, 6, 8, 10, 12))
 dev.off()
 
 png(file = "timecourse-deals-by-cat-total.png", width = 6, height = 3, units = 'in', res = 300)
 ggplot(df2.total) +
   geom_bar(aes(x = date, y = sum_size, fill = Category), colour = "black", stat = "identity") +
   labs(y = "Total deal value ($M)",
-       x = "") + 
-  scale_x_date(date_labels = "%Y") +
+       x = "Month") + 
+  scale_x_date(date_labels = "%m") +
   scale_fill_manual(values=c("#eff3ff", "#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
-  scale_y_continuous(breaks = c(100, 200, 300, 400))
+  scale_y_continuous(breaks = c(50, 100, 150, 200, 250))
 dev.off()
 
 
