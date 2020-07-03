@@ -25,13 +25,16 @@ position <- read.csv("healthcare-investors-position.csv", header = TRUE, strings
 dposition <- read.csv("healthcare-investors-dposition.csv", header = TRUE, stringsAsFactors = FALSE)
 value <- read.csv("healthcare-investors-value.csv", header = TRUE, stringsAsFactors = FALSE)
 os <- read.csv("healthcare-investors-os.csv", header = TRUE, stringsAsFactors = FALSE)
+mf.names <- read.csv("healthcare-investors-mf-names.csv", header = TRUE)
+mf.position <- read.csv("healthcare-investors-mf-position.csv", header = TRUE, stringsAsFactors = FALSE)
+mf.dposition <- read.csv("healthcare-investors-mf-dposition.csv", header = TRUE, stringsAsFactors = FALSE)
 cats <- read.csv(file = "catagories2.csv", header = FALSE, stringsAsFactors = FALSE)
 
 coverage = c("TBP-CA", "PRN-CA", "GUD-CA", "ZYME-US", "EDT-CA", "ATE-CA")
 
 ```
 
-```{r Clean, include = FALSE}
+```{r Clean-Funds, include = FALSE}
 df <- data.frame()
 
 for (ticker in names(names)){
@@ -75,8 +78,6 @@ df <- df[df$tick != "BHC-US",]
 
 names(df) <- c("Ticker", "Investor", "Position", "dPosition", "Value", "%OS", "Location", "Category") 
 
-
-
 # Cleanup variables
 rm(cats)
 rm(country)
@@ -94,11 +95,72 @@ rm(position)
 rm(dposition)
 ```
 
+```{r Clean-MF, include = FALSE}
+df.mf <- data.frame()
+
+for (ticker in names(mf.names)){
+  
+  if (mf.names[,ticker][1] == "#N/A"){
+    next()
+  }
+  
+  investors <- as.character(mf.names[,ticker][mf.names[,ticker] != ""])
+  tick <- rep(ticker, length(investors))
+  pos <- mf.position[,ticker][!is.na(mf.position[,ticker])]
+  dpos <- mf.dposition[,ticker][!is.na(mf.dposition[,ticker])]
+
+  t <- cbind(tick, investors, pos, dpos)
+  
+  df.mf <- rbind(df.mf,t)
+}
+
+df.mf$tick <- as.character(df.mf$tick)
+df.mf$tick <- sub("[.]", "-", df.mf$tick)
+
+
+df.mf$pos <- as.numeric(as.character(df.mf$pos))
+df.mf$dpos <- as.numeric(as.character(df.mf$dpos))
+
+# Add catagory tags to dataframe
+cats$V1[1] <- "ACST-CA"
+
+cats <- unique(cats)
+
+df.mf <- cbind(df.mf, cats$V2[match(unlist(df.mf$tick), cats$V1)])
+
+# Remove Bauch Health from analysis 
+df.mf <- df.mf[df.mf$tick != "BHC-US",]
+
+names(df.mf) <- c("Ticker", "Investor", "Position", "dPosition", "Category") 
+
+# Cleanup variables
+rm(cats)
+rm(country)
+rm(names)
+rm(os)
+rm(value)
+rm(t)
+rm(investors)
+rm(tick)
+rm(loc)
+rm(val)
+rm(out)
+rm(ticker)
+rm(position)
+rm(dposition)
+
+```
+
 ```{r Subsetting, echo=FALSE}
 df.company <- df %>% group_by(Ticker, Category) %>% summarise(count = n(), total = sum(Value))
 df.investor <- df %>% group_by(Investor, Location) %>% summarise(count = n(), total = sum(Value))
-
 df.trading <- df %>% group_by(Investor) %>% summarise(Volume = sum(abs(dPosition))) %>% filter(Volume != 0) %>% arrange(-Volume)
+
+
+df.mf.company <- df.mf %>% group_by(Ticker, Category) %>% summarise(count = n())
+df.mf.investor <- df.mf %>% group_by(Investor) %>% summarise(count = n())
+df.mf.trading <- df.mf %>% group_by(Investor) %>% summarise(Volume = sum(abs(dPosition))) %>% filter(Volume != 0) %>% arrange(-Volume)
+
 
 ```
 

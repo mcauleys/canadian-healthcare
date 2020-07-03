@@ -11,10 +11,7 @@ library(tidyverse)
 require(lubridate) # For summarizing years and date
 ```
 
-
-
 ```{r}
-
 private <- read.csv(file = "PitchBook_scan.csv", stringsAsFactors = FALSE)
 public <- read.csv(file = "Q1-2020.csv", stringsAsFactors = FALSE)
 
@@ -38,12 +35,64 @@ names(public) <- c("Company", "Ticker", "Date", "Category", "Type", "Size", "Inv
 public$Size <- as.numeric(public$Size)
 
 # Format the date column
-$public$Date<- as.Date(public$Date, format = '%m/%d/%Y')
+public$Date<- as.Date(public$Date, format = '%m/%d/%Y')
 
 # Remove the Merger/Acquisitions
 public <- public[public$Type != "Merger/Acquisition",]
+```
+
+Analysis and Graphs
+```{r}
+png(file = "catagory-by-deal.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(public) +
+  geom_bar(aes(x = reorder(Category,Category,function(x)-length(x)), fill = Type)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values=c("#A8A9AD", "#56B4E9", "#118AB2", "#2d465f")) +
+  labs(x = "", y = "Number of deals", fill = "Deal Type") +
+  scale_y_continuous(breaks = c(2, 4, 6, 8, 10))
+dev.off()
+
+png(file = "catagory-by-amount.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(public) +
+  geom_bar(aes(x = reorder(Category,Category,function(x)-length(x)), y = Size, fill = Type), stat = "identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values=c("#A8A9AD", "#56B4E9", "#118AB2", "#2d465f")) +
+  labs(x = "", y = "Total deal value ($M)", fill = "Deal Type") +
+  scale_y_continuous(breaks = c(50, 100, 150, 200))
+dev.off()
+
+# Analyze and graph the dataset on a per-month basis
+public <- public %>% mutate(month = month(Date)) %>% mutate(year = year(Date))
+
+public.summary <- public %>% group_by(month, year, Category) %>% summarise(count = n())
+public.summary <- df2.summary %>% mutate(date = as.Date(paste0(year, "-", month,"-01"),"%Y-%m-%d"))
+
+public.total <- public %>% group_by(month, year, Category) %>% summarise(sum_size = sum(Size))
+public.total <- public.total %>% mutate(date = as.Date(paste0(year, "-", month,"-01"),"%Y-%m-%d"))
+
+png(file = "timecourse-deals-by-cat-num.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(public.summary) +
+  geom_bar(aes(x = date, y = count, fill = Category), colour = "black", stat = "identity") +
+  labs(y = "Number of deals", x = "Month") + 
+  scale_x_date(date_labels = "%m") +
+  scale_fill_manual(values=c("#eff3ff", "#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
+  scale_y_continuous(breaks = c(2, 4, 6, 8, 10, 12))
+dev.off()
+
+png(file = "timecourse-deals-by-cat-total.png", width = 6, height = 3, units = 'in', res = 300)
+ggplot(public.total) +
+  geom_bar(aes(x = date, y = sum_size, fill = Category), colour = "black", stat = "identity") +
+  labs(y = "Total deal value ($M)",
+       x = "Month") + 
+  scale_x_date(date_labels = "%m") +
+  scale_fill_manual(values=c("#eff3ff", "#CCCCCC", "#A8A9AD", "#56B4E9", "#118AB2", "#2d465f", "#191919")) +
+  scale_y_continuous(breaks = c(50, 100, 150, 200, 250))
+dev.off()
 
 ```
+
+
+
 
 Prepare the private data
 ```{r}
@@ -206,7 +255,6 @@ dev.off()
 
 
 ```
-
 
 ```{r}
 ggplot(df) +
